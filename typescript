@@ -1,0 +1,364 @@
+Script started on Thu 21 Mar 2024 09:04:56 AM EDT
+]0;sanjeevirao_mp@cobra:~/CSC245/Prog2[?1034h[sanjeevirao_mp@cobra Prog2]$ cat postfix.cpp
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <string>
+#include "stack.h"
+#include <sstream>
+
+using namespace std;
+
+// defines classes for exception cases 
+class DataError{};
+class DivisionByZero{};
+class StackUnderflow{};
+
+// function prototypes
+string getPostfixExpression();
+void evalPostfix(const string postfix, const string operators);
+bool goAgain();
+
+// main method
+int main(int argc, char *argv[]) {
+	const string validInput = "0123456789 _+-*/%;";
+	const string operators = "+-*/%";
+	do {
+		try {
+			string postfix = getPostfixExpression(); // calls method to read in postfix expression
+			for(int i = 0; i < postfix.length(); i++) {
+				char c = postfix.at(i);
+				if(validInput.find(c) == string::npos && c != ' ') { // checks if each character is valid input
+					throw DataError();
+				}
+			}
+			evalPostfix(postfix, operators); // calls method to evaluate postfix
+		} catch (const DataError exc) {
+			cerr << "Exception -- You Have entered An Invalid Expression." << endl;
+			cin.clear();
+		} catch (const DivisionByZero exc) {
+			cerr << "Division By Zero Exception -- Now Exiting." << endl;
+		} catch (const StackUnderflow exc) {
+			cerr << "Stack Underflow Exception -- Now Exiting." << endl;
+			cin.clear();
+		}
+	} while(goAgain()); // continues while user wants to goAgain
+	return 0;
+}
+
+// method to perform arithmetic operations of + _ * / % 
+int performOperation(char op, int a, int b) {
+	switch (op) {
+		case '+': 
+			return a + b;
+		case '-':
+			return a - b;
+		case '*':
+			return a * b;
+		case '/':
+			if(b == 0) {
+				cout << "Token = /	 Pop " << b << "       Pop " << a << endl;
+				throw DivisionByZero();
+			}
+			return a / b;
+		case '%':
+			return a % b;
+		default:
+			throw DataError();
+	}
+}
+
+// method to evaluate postfix expression
+void evalPostfix(const string postfix, const string operators) {
+	stack<int> opStack; // creates stack to store operands 
+
+	for(int i = 0; i < postfix.length(); i++) { // iterate through each character in string postfix 
+		char currentChar = postfix.at(i);
+		int operand = 0;
+		
+		if(isdigit(currentChar) || (currentChar == '_')) { // if it is an operand (either a number or negative number)
+		// https://cplusplus.com/reference/cctype/isdigit/ <-- source for isdigit
+			int sign = 1;
+			
+			if(currentChar == '_') { 
+				sign = -1;
+				i++;
+			}
+			while (i < postfix.length() && isdigit(postfix.at(i))) {
+				operand = operand * 10 + (postfix.at(i) - '0'); // update operand 
+				i++;	
+			}
+			operand *= sign;
+			i--;
+			
+			// convert int to string 
+			stringstream ss;
+			ss << operand;
+			string operandStr = ss.str();
+	
+			opStack.push(operand);
+			cout << "Token = " << operandStr << "        Push " << operandStr << "\n";	
+		
+			// handle consecutive negative integers
+			char front = postfix.at(i + 2);
+			if(front == '_') {
+				i += 2;
+				while (i < postfix.length() && isdigit(postfix.at(i))) {
+                   	        	operand = operand * 10 + (postfix.at(i) - '0');                                 
+                                	i++;
+                        	}
+                        	operand *= -1;
+                        	i--;
+			}	
+			
+			// handle intOp attachment (2+)
+			if (i + 1 < postfix.length() && (operators.find(i+1) != string::npos)) { // if i + 1 is less than length AND i + 1 is an operator
+												// https://www.geeksforgeeks.org/stringnpos-in-c-with-examples/ 
+												// string::npos source
+				while (i < postfix.length() && isdigit(postfix.at(i))) {
+					operand = operand * 10 + (postfix.at(i) - '0');
+					i++;
+                        	}
+                        	operand *= sign;
+				opStack.push(operand);
+				cout << "Token = " << operandStr << "        Push " << operandStr << "\n";
+			} 	
+		} else if(operators.find(currentChar) != string::npos) { // if it is an operator
+			if(opStack.isEmpty()) {
+				throw StackUnderflow();
+			}	
+			int op1 = opStack.topAndPop();
+			if(opStack.isEmpty()) {
+				throw StackUnderflow();
+			}
+			int op2 = opStack.topAndPop();
+			int result = performOperation(currentChar, op2, op1);
+			opStack.push(result);
+			cout << "Token = " << currentChar << "        Pop " << op1 << "        Pop " << op2 << "        Push " << result << "\n";
+			
+			// handle opInt attachment 
+			if (i + 2 < postfix.length() && (postfix.at(i+1) == '_'))  { //op followed by negative int (+_2)
+				operand = -1 * (postfix.at(i + 2) - '0');
+				opStack.push(operand);
+				cout << "Token = " << operand << "      Push " << operand << endl;
+				i += 2;
+			} else if(i + 1 < postfix.length() && isdigit(postfix.at(i + 1))) {
+					operand = postfix.at(i + 1) - '0';
+					opStack.push(operand);
+					cout << "Token = " << operand << "        Push " << operand << endl;
+					i++;
+			}
+		} else if(currentChar == ';') {
+			if(opStack.isEmpty()) {
+				throw StackUnderflow();
+			}
+			operand = opStack.topAndPop();
+			cout << "Token = ;        Pop " << operand << endl;
+		}
+	}	
+}
+
+// method to return the postfix expression entered in by the user 
+string getPostfixExpression() {
+	cout << "@@@@@@@@@@@@@@@@@ THE POSTFIX EVALUATOR @@@@@@@@@@@@@@@@@\n";
+	cout << "Your RPN Expression : ";
+	string postfix;
+	getline(cin, postfix); // reads user input 
+	return postfix;
+}
+
+// boolean method to ask the user if they want to enter another expression 
+bool goAgain() {
+	string input;
+	
+	while(true) {
+		cout << "Go Again? (Y/N): ";
+		getline(cin, input); // reads user input
+		
+		if (input.length() == 1 && (input[0] == 'y' || input[0] == 'Y')) {
+			return true;
+		} else if(input.length() == 1 && (input[0] == 'n' || input[0] == 'N')) {
+			return false;
+		} else {
+			cout << "Invalid input. Please enter 'Y' or 'N'." << endl;
+		}
+	}
+}
+]0;sanjeevirao_mp@cobra:~/CSC245/Prog2[sanjeevirao_mp@cobra Prog2]$ cat myV[KBet.cpp
+#include <iostream>
+#include <cstdlib>
+#include <fstream>
+#include <stack>
+#include <cstring>
+
+using namespace std;
+
+// given struct for tree node declaration
+struct BetNode {
+	char info;
+	BetNode* left;
+	BetNode* right;
+};
+
+// function prototypes
+bool isOperand(char c);
+string infixToPostfix(const string& infix);
+BetNode* buildTree(const string& postfix);
+void preorderTraversal(BetNode* root);
+
+// main method
+int main() {
+	ifstream infile("infix.dat"); // open file input stream
+	if (!infile.is_open()) { // to handle errors
+		cerr << "Error opening input file." << endl;
+		return 1;
+	}
+	string infix;
+	while (getline(infile, infix)) {
+		string postfixExpression = infixToPostfix(infix); // calls method to convert infix -> postfix 
+		BetNode* root = buildTree(postfixExpression); // calls method to convert postfix -> BET
+		preorderTraversal(root); // calls method to print prefix expression
+	
+		cout << endl;
+	}
+	infile.close(); // close input file stream
+	return 0;
+}
+
+// boolean method to check if character is an operand 
+bool isOperand(char c) {
+	return (c >= '0' && c <= '9');
+}
+
+// method to convert an infix expression to a postfix expression
+string infixToPostfix(const string& infix) {
+	string postfix; // output string 
+	stack<char> s; // stack creation 
+	
+	for (int i = 0; i < infix.length(); ++i) {
+		char c = infix[i];
+		if(c == ' ') {
+			continue; // skip spaces 
+		}
+		if(isOperand(c)) {
+			postfix += c; // immediately outputs operands 
+			postfix += ' ';
+		} else if(c == '(') {
+			s.push(c);
+		} else if(c == ')') {
+			while (!s.empty() && s.top() != '(') { // pops all values from stack until ( is found 
+				postfix += s.top();
+				postfix += ' ';
+				s.pop();
+			}
+			s.pop();
+		} else { // operators 
+			while (!s.empty() && s.top() != '(' && c <= s.top()) {
+				postfix += s.top(); 
+				postfix += ' ';
+				s.pop();
+			}
+			s.push(c);
+		}
+	}
+	
+	while(!s.empty()) {
+		postfix += s.top(); // adds remaining stack members to postfix
+		postfix += ' ';
+		s.pop();
+	}
+	
+	return postfix;
+}
+
+// method to convert postfix expression to a binary expression tree
+BetNode* buildTree(const string& postfix) {
+	stack<BetNode*> s; // creates stack for tree construction
+
+	for (int i = 0; i < postfix.length(); ++i) {
+		char c = postfix[i];
+			
+		if(c == ' ') {
+			continue; // skip spaces 
+		}
+		
+		BetNode* node = new BetNode; // create new node 
+		node -> info = c;// set node value 
+		node -> left = node -> right = NULL; // initailize child pointers 
+	
+		if (isOperand(c)) { 
+			s.push(node); // operands get pushed onto stack 
+		} else {
+			if(s.size() < 2) { // to handle errors 
+				cerr << "Invalid postfix expression." << endl;
+				exit(1);
+			}
+			node -> right = s.top();
+			s.pop();
+			node -> left = s.top();
+			s.pop();
+			s.push(node);
+		}
+	}
+	
+	if(s.size() != 1) {
+		cerr << "Unable to build tree." << endl;
+	}
+	
+	return s.top(); // returns root of tree 
+}
+
+// method to print out a preorder traversal (PLR) of tree 
+void preorderTraversal(BetNode* root) {
+	if(root) {
+		cout << root -> info << " ";
+		preorderTraversal(root -> left);
+		preorderTraversal(root -> right);
+	}
+}
+
+]0;sanjeevirao_mp@cobra:~/CSC245/Prog2[sanjeevirao_mp@cobra Prog2]$ c++ postfix.cpp
+]0;sanjeevirao_mp@cobra:~/CSC245/Prog2[sanjeevirao_mp@cobra Prog2]$ ./a.out
+@@@@@@@@@@@@@@@@@ THE POSTFIX EVALUATOR @@@@@@@@@@@@@@@@@
+Your RPN Expression : 8 2 _1 + / 15 *;
+Token = 8        Push 8
+Token = 2        Push 2
+Token = -1        Push -1
+Token = +        Pop -1        Pop 2        Push 1
+Token = /        Pop 1        Pop 8        Push 8
+Token = 15        Push 15
+Token = *        Pop 15        Pop 8        Push 120
+Token = ;        Pop 120
+Go Again? (Y/N): Y
+@@@@@@@@@@@@@@@@@ THE POSTFIX EVALUATOR @@@@@@@@@@@@@@@@@
+Your RPN Expression : 8 2 1 + / 15 $ ;
+Exception -- You Have entered An Invalid Expression.
+Go Again? (Y/N): Y
+@@@@@@@@@@@@@@@@@ THE POSTFIX EVALUATOR @@@@@@@@@@@@@@@@@
+Your RPN Expression : 1 0 / ;
+Token = 1        Push 1
+Token = 0        Push 0
+Token = /	 Pop 0       Pop 1
+Division By Zero Exception -- Now Exiting.
+Go Again? (Y/N): Y
+@@@@@@@@@@@@@@@@@ THE POSTFIX EVALUATOR @@@@@@@@@@@@@@@@@
+Your RPN Expression : _2_3+ 4/5-;
+Token = -2        Push -2
+Token = -3        Push -3
+Token = +        Pop -3        Pop -2        Push -5
+Token = 4        Push 4
+Token = /        Pop 4        Pop -5        Push -1
+Token = 5        Push 5
+Token = -        Pop 5        Pop -1        Push -6
+Token = ;        Pop -6
+Go Again? (Y/N): N
+]0;sanjeevirao_mp@cobra:~/CSC245/Prog2[sanjeevirao_mp@cobra Prog2]$ c++ myBet.cpp
+]0;sanjeevirao_mp@cobra:~/CSC245/Prog2[sanjeevirao_mp@cobra Prog2]$ ./a.out
++ 3 4 
+* + 5 4 8 
+* / * 0 + 1 2 - 3 + 4 5 / / 6 7 * 8 9 
+* - 1 3 + * + 4 5 6 7 
+]0;sanjeevirao_mp@cobra:~/CSC245/Prog2[sanjeevirao_mp@cobra Prog2]$ exit
+exit
+
+Script done on Thu 21 Mar 2024 09:06:39 AM EDT
